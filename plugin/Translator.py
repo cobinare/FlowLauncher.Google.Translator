@@ -10,93 +10,85 @@ import urllib.parse
 import urllib.request
 import html
 import re
-import textwrap
 import subprocess
 
 
-def translate(to_translate, to_language="auto", from_language="auto", wrap_len="200"):
+def translate(query: str, to_language="en", from_language="auto"):
     """Get translated query from Google translate."""
-    agent = {'User-Agent': "Edge, Brave, Firefox, Chrome, Opera"}
+    headers = {"User-Agent": "Edge, Brave, Firefox, Chrome, Opera"}
     base_link = "https://translate.google.com/m?tl=%s&sl=%s&q=%s"
-    to_translate = urllib.parse.quote(to_translate)
-    link = base_link % (to_language, from_language, to_translate)
-    request = urllib.request.Request(link, headers=agent)
-    raw_data = urllib.request.urlopen(request).read()
-    data = raw_data.decode("utf-8")
+
+    query_quoted = urllib.parse.quote(query)
+    link = base_link % (to_language, from_language, query_quoted)
+    request = urllib.request.Request(link, headers=headers)
+
+    data = urllib.request.urlopen(request).read().decode("utf-8")
     expr = r'class="result-container">(.*?)<'
     re_result = re.findall(expr, data)
-    if len(re_result) == 0:
-        result = ""
-    else:
-        result = html.unescape(re_result[0])
-    return "\n".join(textwrap.wrap(result, int(wrap_len) if wrap_len.isdigit() else 200))
+    return html.unescape(re_result[0]) if len(re_result) > 0 else ""
 
 
-def copy2clip(txt):
+def copy2clip(txt: str):
     """Put translation into clipboard."""
-    cmd = 'echo '+txt.strip()+'|clip'
-    return subprocess.check_call(cmd, shell=True)
+    # Allows to copy text without trailing '\n'
+    cmd = f'cmd /c "echo|set /p={txt}"| clip'
+    try:
+        subprocess.check_call(cmd, shell=True)
+        return True
+    except:
+        return False
 
 
 class GoogTranslate(FlowLauncher):
-
-    def query(self, query):
-        results = []
+    def query(self, param: str = ''):
+        param = param.strip()
         try:
-            urllib.request.urlopen("https://translate.google.com/")
-            # Online or Normal workflow
-            if len(query.strip()) == 0:
-                results.append({
+            from_language = "auto"
+            to_language = "en"
+            param_parts = param.split(maxsplit=1)
+            query = param
+
+            if ( # If the first word is either "from:to" or "from:" or ":to"
+                len(param_parts) > 1
+                and param_parts[0].count(":") == 1
+                and len(param_parts[0]) > 1
+            ):
+                lang_parts = param_parts[0].split(":")
+                from_language = lang_parts[0] or from_language
+                to_language = lang_parts[1] or to_language
+                query = param_parts[1]
+
+            if len(query) == 0:
+                return [{
                     "Title": ":es text to translate",
-                    "SubTitle": "use: 'tr :es your expresion' to translate from auto-detected to Spanish",
-                    "IcoPath": "Images/gt.png", "ContextData": "ctxData"})
-            else:
-                from_language = "auto"
-                to_language = "en"
-                parts = query.split(" ", 1)
+                    "SubTitle": ("use: 'tr :es your expresion' to translate"
+                                 "from auto-detected to Spanish"),
+                    "IcoPath": "Images/gt.png"}]
 
-                if len(parts) > 1:
-                    languages, query = parts
-                    lang_parts = languages.split(":")
+            try:
+                translation = translate(query, to_language, from_language)
+            except:
+                raise Exception("Could not access translate.google.com")
 
-                    if len(lang_parts) > 1:
-                        from_language, to_language_candidate = lang_parts
-                        if from_language:
-                            from_language = from_language.strip()
-                        if to_language_candidate:
-                            to_language = to_language_candidate.strip()
-                    elif len(lang_parts) == 1:
-                        to_language = lang_parts[0].strip()
-                else:
-                    query = query.strip()
+            return [{
+                "Title": to_language + ": " + translation,
+                "SubTitle": from_language + ": " + query,
+                "IcoPath": "Images/gt.png",
+                "JsonRPCAction": {"method": "copy",
+                                  "parameters": [translation]}}]
+        except Exception as e:
+            return [{
+                "Title": "Error",
+                "SubTitle": str(e),
+                "IcoPath": "Images/gt.png"}]
 
-                if len(query.strip()) == 0:
-                    results.append({
-                        "Title": ":es text to translate",
-                        "SubTitle": "use: 'tr :es your expresion' to translate from auto-detected to Spanish",
-                        "IcoPath": "Images/gt.png", "ContextData": "ctxData"})
-                else:
-                    translation = translate(
-                        query.strip(), to_language, from_language, "200")
-
-                    results.append({
-                        "Title": to_language + ": " + translation,
-                        "SubTitle": from_language + ": " + query,
-                        "IcoPath": "Images/gt.png",
-                        "ContextData": "ctxData",
-                        "JsonRPCAction": {"method": "copy", "parameters": [translation], }})
-        except:
-            # Offline or input error
-            results.append({
-                "Title": "Invalid Notation or No Internet Connection",
-                "SubTitle": "Please, Verify and try again",
-                "IcoPath": "Images/gt.png", "ContextData": "ctxData"})
-
-        return results
-
-    def copy(self, ans):
+    def copy(self, txt: str):
         """Copy translation to clipboard."""
-        FlowLauncherAPI.show_msg("Copied to clipboard", copy2clip(ans))
+        if copy2clip(txt):
+            FlowLauncherAPI.show_msg("Copied to clipboard", f"\"{txt}\"")
+        else:
+            FlowLauncherAPI.show_msg(
+                "Failed to copy", "Error copying translation to clipboard")
 
 
 if __name__ == "__main__":
