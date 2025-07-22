@@ -3,39 +3,45 @@ name: Publish Release
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
-    paths-ignore: 
+    branches: [main]
+    paths-ignore:
       - .github/workflows/*
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    env:
-      python_ver: 3.8
+    strategy:
+      matrix:
+        python-version: [3.11]
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
-      - name: get version
-        id: version
-        uses: notiz-dev/github-action-json-property@release
-        with: 
-          path: 'plugin.json'
-          prop_path: 'Version'
-      - run: echo ${{steps.version.outputs.prop}} 
-      - name: Install dependencies
+      - name: Install Plugin dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flowlauncher PyYAML -t ./lib
-          zip -r Flow.Launcher.Plugin.GoogleTranslate.zip . -x '*.git*'
+          pip install -r ./requirements.txt -t ./lib
+      - name: Archive Release
+        uses: thedoctor0/zip-release@main
+        with:
+          type: "zip"
+          filename: "${{ github.event.repository.name }}.zip"
+          exclusions: '*.git*'
+      - name: Get Plugin's version
+        id: version
+        uses: notiz-dev/github-action-json-property@release
+        with:
+          path: "plugin.json"
+          prop_path: "Version"
       - name: Publish
         if: success()
         uses: softprops/action-gh-release@v1
         with:
-          files: 'Flow.Launcher.Plugin.GoogleTranslate.zip'
-          tag_name: "v${{steps.version.outputs.prop}}"
+          files: "${{ github.event.repository.name }}.zip"
+          tag_name: "v${{ steps.version.outputs.prop }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
