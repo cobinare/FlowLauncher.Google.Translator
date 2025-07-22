@@ -1,0 +1,17 @@
+body:
+  - type: input
+    attributes:
+      name: default_languages
+      label: Default language code(s)
+      description: "Separate with comma (e.g. \"en, es, de\"). Default: \"en\""
+      defaultValue: en
+  - type: dropdown
+    attributes:
+      name: code_separator
+      label: Language code separator
+      description: Used in "from:to" notation (here ':' symbol is a separator)
+      defaultValue: ':'
+      options:
+        - ':'
+        - '>'
+        - '|'
