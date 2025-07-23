@@ -9,9 +9,9 @@ import urllib.request
 import html
 import re
 import concurrent.futures
+import pyperclip
 from flowlauncher import FlowLauncher, FlowLauncherAPI
 from language import LANGUAGES, guess_lang_code
-from utils import copy_to_clipboard
 
 
 def translate(query: str, from_language="auto", to_language="en") -> str:
@@ -45,9 +45,6 @@ def translate(query: str, from_language="auto", to_language="en") -> str:
 
 
 class Translator(FlowLauncher):
-    # !!! ADD DEBOUNCE/THROTTLE !!!
-    # TODO: Too many requests are being sent while typing, add debounce
-    # TODO: or throttle to avoid hitting google's request limit.
     def query(self, param: str = '') -> list:
         param = param.strip()
         default_langs: list[str] = [
@@ -150,11 +147,8 @@ class Translator(FlowLauncher):
 
     def copy(self, txt: str) -> None:
         """Copy translation to clipboard."""
-        if copy_to_clipboard(txt):
-            FlowLauncherAPI.show_msg("Copied to clipboard", f"\"{txt}\"")
-        else:
-            FlowLauncherAPI.show_msg(
-                "Failed to copy", "Error copying translation to clipboard")
+        pyperclip.copy(txt)
+        FlowLauncherAPI.show_msg("Copied to clipboard", f"\"{txt}\"")
 
     def get_setting(self, name: str) -> str:
         """Get plugin setting by its name in `SettingsTemplate.yaml` file"""
